@@ -23,16 +23,16 @@ function create_error_distribution(Y::Matrix{Float64}, σ::Float64=0.1)
     n, L = size(Y)  # n nodes, L classes
     Z = zeros(n, L)
     
-    # Create half-normal distribution
-    half_normal = Distributions.FoldedNormal(0.0, σ)
+    # Create normal distribution and take absolute values to get half-normal
+    normal_dist = Normal(0.0, σ)
     
     for i in 1:n
         # Find the true label index (j*)
         j_star = findfirst(x -> x ≈ 1.0, Y[i,:])
         
         if !isnothing(j_star)
-            # Sample error for the true label from half-normal
-            Z[i,j_star] = rand(half_normal)
+            # Sample error for the true label from half-normal (abs of normal)
+            Z[i,j_star] = abs(rand(normal_dist))
             
             # Distribute the negative error evenly across other classes
             error_per_class = -Z[i,j_star] / (L - 1)

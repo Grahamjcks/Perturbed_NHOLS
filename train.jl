@@ -18,7 +18,7 @@ if !isdir("./perturbed_results")
    mkdir("./perturbed_results")
 end
 
-colnames = [:method_name, :size, :knn, :percentage_of_known_labels, :α, :β, :balanced, :noise, :acc, :prec, :rec]
+colnames = [:method_name, :size, :knn, :percentage_of_known_labels, :α, :β, :balanced, :noise, :acc, :prec, :rec, :dataset]
 
 # Function to run analysis with either original or perturbed labels
 function run_analysis(mode, data, y, features, A, DG_isqrt, T=nothing, DH_isqrt=nothing, B=nothing; use_perturbed=false)
