@@ -1,12 +1,8 @@
 using Random, LinearAlgebra, SparseArrays, MAT, Statistics
 using DataStructures
-using PyCall
-using ScikitLearn
+using NearestNeighbors
 
 include("structs.jl")
-
-@sk_import neighbors: NearestNeighbors
-const scipy_sparse_find = pyimport("scipy.sparse")."find"
 
 export SuperSparse3Tensor,
        cosine_angle,
@@ -14,7 +10,6 @@ export SuperSparse3Tensor,
        mean_square_distance,
        mean_distance_squared,
        max_square_distance,
-       scipy2julia_sparse,
        distance_matrix,
        time_distance_matrix,
        rbf_similarity_weights_tensor,
@@ -53,17 +48,38 @@ end
 
 
 ######## KNN matrix from dataset
-function scipy2julia_sparse(Apy::PyObject)
-    IA, JA, SA = scipy_sparse_find(Apy)
-    return sparse(Int[i+1 for i in IA], Int[i+1 for i in JA], SA)
-end
-
 function distance_matrix(X, kn; mode="distance")
-    nn = NearestNeighbors(kn, p=2, n_jobs=-1)
-    nn.fit(X)
-    A = nn.kneighbors_graph(X, mode=mode)
-    K = scipy2julia_sparse(A)
-    K = max.(K,K')
+    # Convert X to matrix if it's not already
+    X_matrix = Matrix(X')  # NearestNeighbors expects points as columns
+    
+    # Create tree for efficient nearest neighbor search
+    tree = BallTree(X_matrix)
+    
+    # Find k nearest neighbors for each point
+    idxs, dists = knn(tree, X_matrix, kn + 1, true)  # k+1 because it includes the point itself
+    
+    # Create sparse matrix
+    n = size(X, 1)
+    I = Int[]
+    J = Int[]
+    V = Float64[]
+    
+    for i in 1:n
+        for (j, d) in zip(idxs[i][2:end], dists[i][2:end])  # Skip first neighbor (self)
+            if mode == "distance"
+                push!(I, i)
+                push!(J, j)
+                push!(V, d)
+            else  # mode == "connectivity"
+                push!(I, i)
+                push!(J, j)
+                push!(V, 1.0)
+            end
+        end
+    end
+    
+    K = sparse(I, J, V, n, n)
+    K = max.(K, K')
     return K
 end
 

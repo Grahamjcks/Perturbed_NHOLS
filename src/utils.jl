@@ -1,7 +1,4 @@
-
-using UCIData, DelimitedFiles, Random, LinearAlgebra, SparseArrays, Distances, DataFrames, CSV, LightGraphs, MAT, Statistics, PyCall
-
-@pyimport numpy as np
+using UCIData, DelimitedFiles, Random, LinearAlgebra, SparseArrays, Distances, DataFrames, CSV, LightGraphs, MAT, Statistics
 
 export prepare_uci_data, accuracy, precision, recall, train_test_val_split, train_test_split
 
@@ -89,7 +86,7 @@ function train_test_val_split(y, perc_train, perc_val; balanced=false)
            val_mask[val_indices] .= 1
 
         end
-        return np.array(Y_train), np.array(Y_test), np.array(Y_val), Bool.(train_mask), Bool.(test_mask), Bool.(val_mask)
+        return Y_train, Y_test, Y_val, Bool.(train_mask), Bool.(test_mask), Bool.(val_mask)
 end
 
 
@@ -117,7 +114,7 @@ function train_test_split(X, y, perc_train; balanced=false)
            Y_test[(label-1)*num_test + 1:label*num_test, label] .= 1
 
         end
-        return np.array(Y_train), np.array(Y_test), X[full_train_indices, :], X[full_test_indices, :], X[vcat(full_train_indices, full_test_indices), :]
+        return Y_train, Y_test, X[full_train_indices, :], X[full_test_indices, :], X[vcat(full_train_indices, full_test_indices), :]
 end
 
 function parse_args(args)
@@ -157,7 +154,8 @@ function prepare_config_data(data)
    mixing_functions = nothing
    if "mixing_functions" in keys(data)
       @show data["mixing_functions"]
-      mixing_functions = map(x -> getfield(Main, Symbol(x)), split(data["mixing_functions"], ", "))
+      # Handle both comma-separated with and without spaces
+      mixing_functions = [getfield(Main, Symbol(strip(x))) for x in split(data["mixing_functions"], ',')]
    end
 
    return balanced, binary, alphas, betas, distance, mixing_functions, ε, kn, noise, percentage_of_known_labels, num_trials, dataset_name, data_type
@@ -167,8 +165,8 @@ function read_hols_datasets(folder, dataset)
     IJ = readdlm("./data/$folder/edges-$dataset.txt")
     Y = readdlm("./data/$folder/labels-$dataset.txt")
     n = length(Y)
-    A = sparse(IJ[:,1], IJ[:,2], 1, n, n)
+    A = sparse(IJ[:,1], IJ[:,2], 1.0, n, n)
     A = max.(A, A')
-    A = min.(A, 1)
+    A = min.(A, 1.0)
     return A, convert(Vector{Int64}, vec(Y))
 end

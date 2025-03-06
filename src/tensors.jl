@@ -413,7 +413,7 @@ function load_data(dataset_name, kn, noise, weight_function, mode, binary; data_
 
 
    if dataset_name in ["Caltech36", "Rice31"]
-      adj_matrix, y = read_hols_datasets(dataset_name)
+      adj_matrix, y = read_hols_datasets("fb100", dataset_name)
       return adj_matrix, y, compute(adj_matrix, kn, noise, weight_function, mode, binary, "matrix")...
    else
       println("$dataset_name is not one of the fb100 datasets.")

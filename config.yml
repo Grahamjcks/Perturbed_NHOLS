@@ -1,26 +1,20 @@
-
-mode: LS
+mode: "HOLS"
 
 HOLS:
-  α:
-    - .1
-    - .2
-    - 5
-  β:
-    - .1
-  ε: 1e-6
+  dataset: "Rice31"
+  data_type: "matrix"
+  binary: true
   kn: 15
   noise: 0
-  tolerance: 1e-5
-  dataset: iris
-  distance: cosine_angle
-  binary: true
-  percentage_of_known_labels:
-    - .1
-  balanced: false
-  data_type: points
-  num_trials: 5
-  mixing_functions: f1, f2, f4, f3, f_max
+  ε: 1e-6
+  tolerance: 1e-6
+  num_trials: 1
+  balanced: true
+  α: 0.1
+  β: 0.1
+  percentage_of_known_labels: [5.0, 10.0, 15.0, 20.0]
+  weight_function: "binary"
+  mixing_functions: "f_max"
 
 
 LS:

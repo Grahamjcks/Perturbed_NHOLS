@@ -75,13 +75,24 @@ function generate_known_labels(percentage_of_known_labels, balanced, ground_trut
     number_of_classes = length(unique(ground_truth_classes))
     num_per_class = [sum(ground_truth_classes .== i) for i in 1:number_of_classes]
 
-    if balanced
-        known_labels_per_each_class = Int64.(ceil.(percentage_of_known_labels.*num_per_class'))
-    else
-        known_labels_per_each_class = percentage_of_known_labels.*num_per_class'
-        known_labels_per_each_class = Int64.(ceil.(known_labels_per_each_class .+ (known_labels_per_each_class./2).*randn(size(known_labels_per_each_class)) ))
-        known_labels_per_each_class = min.(known_labels_per_each_class, num_per_class')
-        known_labels_per_each_class = max.(known_labels_per_each_class,1)
+    # Handle both single percentage and vector of percentages
+    if isa(percentage_of_known_labels, Number)
+        percentage_of_known_labels = [percentage_of_known_labels]
+    end
+
+    # Create a matrix where each row corresponds to a percentage and each column to a class
+    known_labels_per_each_class = zeros(Int64, length(percentage_of_known_labels), number_of_classes)
+    
+    for (i, perc) in enumerate(percentage_of_known_labels)
+        if balanced
+            known_labels_per_each_class[i,:] = Int64.(ceil.(perc .* num_per_class ./ 100))
+        else
+            row_labels = perc .* num_per_class ./ 100
+            row_labels = Int64.(ceil.(row_labels .+ (row_labels./2) .* randn(length(row_labels))))
+            row_labels = min.(row_labels, num_per_class)
+            row_labels = max.(row_labels, 1)
+            known_labels_per_each_class[i,:] = row_labels
+        end
     end
 
     return known_labels_per_each_class
@@ -195,7 +206,10 @@ function analyze_prediction_LS(A, DG_isqrt, percentage_of_known_labels, true_cla
     return pred_accuracy,pred_precision,pred_recall
 end
 
-function analyze_prediction_HOLS(A, DG_isqrt, T, DH_isqrt,B,φ, mixing_functions, percentage_of_known_labels, true_classes; balanced = true, ε = 1e-6, α = .4, β = .3)
+function analyze_prediction_HOLS(A, DG_isqrt, T, DH_isqrt,B,φ,
+                                                       mixing_functions,
+                                                       percentage_of_known_labels,
+                                                       true_classes; balanced = true, ε = 1e-6, α = .4, β = .3)
     num_of_classes = length(unique(true_classes))
     known_labels_per_each_class = generate_known_labels(percentage_of_known_labels, balanced, true_classes)
     n = size(A,1)
@@ -210,8 +224,6 @@ function analyze_prediction_HOLS(A, DG_isqrt, T, DH_isqrt,B,φ, mixing_functions
     @threads for i in 1:length(percentage_of_known_labels)
         #println("$p...")
 
-        row_index_class = 0
-
         @threads for class in 1:num_of_classes
             #println("$class...")
 
@@ -225,16 +237,24 @@ function analyze_prediction_HOLS(A, DG_isqrt, T, DH_isqrt,B,φ, mixing_functions
             Y = (1 - ε) .* Y .+ ε
 
             for (j,f) in enumerate(mixing_functions)
-                tildeY = Y
-                if φ(DH_isqrt .* tildeY,f,B) > 1e-20
-                    tildeY = tildeY ./ φ(tildeY,f,B)
-                end # it seems to work slightly better if we start directly with a normalized Y, when possible
-                X_labels[j,:,class], _ = projected_second_order_label_spreading(
-                    x -> Tf(T, DH_isqrt, f, x),
-                    x -> Ax(A, DG_isqrt, x),
-                    tildeY,
-                    α,β,1-α-β,x->φ(DH_isqrt .* x,f,B));
-
+                tildeY = copy(Y)
+                if f == f_max
+                    # For f_max, we don't need to normalize
+                    X_labels[j,:,class], _ = projected_second_order_label_spreading(
+                        x -> Tf(T, DH_isqrt, f, x),
+                        x -> Ax(A, DG_isqrt, x),
+                        tildeY,
+                        α,β,1-α-β,x->maximum(abs.(x)));
+                else
+                    if φ(DH_isqrt .* tildeY,f,B) > 1e-20
+                        tildeY = tildeY ./ φ(tildeY,f,B)
+                    end
+                    X_labels[j,:,class], _ = projected_second_order_label_spreading(
+                        x -> Tf(T, DH_isqrt, f, x),
+                        x -> Ax(A, DG_isqrt, x),
+                        tildeY,
+                        α,β,1-α-β,x->φ(DH_isqrt .* x,f,B));
+                end
             end
         end
 
@@ -243,7 +263,6 @@ function analyze_prediction_HOLS(A, DG_isqrt, T, DH_isqrt,B,φ, mixing_functions
             pred_accuracy[i,j] = accuracy(Y_predicted, true_classes)
             pred_precision[i,j] = precision(Y_predicted, true_classes)
             pred_recall[i,j] = recall(Y_predicted, true_classes)
-
         end
     end
 
