@@ -23,7 +23,7 @@ function create_error_distribution(Y::Matrix{Float64}, σ::Float64=0.1)
     n, L = size(Y)  # n nodes, L classes
     Z = zeros(n, L)
     
-    # Create normal distribution and take absolute values to get half-normal
+    # Create normal distribution
     normal_dist = Normal(0.0, σ)
     
     for i in 1:n
@@ -32,7 +32,8 @@ function create_error_distribution(Y::Matrix{Float64}, σ::Float64=0.1)
         
         if !isnothing(j_star)
             # Sample error for the true label from half-normal (abs of normal)
-            Z[i,j_star] = abs(rand(normal_dist))
+            # and cap it at 1.0 to ensure valid probabilities
+            Z[i,j_star] = min(abs(rand(normal_dist)), 1.0)
             
             # Distribute the negative error evenly across other classes
             error_per_class = -Z[i,j_star] / (L - 1)
@@ -49,6 +50,9 @@ function create_error_distribution(Y::Matrix{Float64}, σ::Float64=0.1)
     
     # Verify that rows still sum to 1 (within numerical precision)
     @assert all(abs.(sum(Ỹ, dims=2) .- 1) .< 1e-10) "Modified labels do not sum to 1"
+    
+    # Verify that all probabilities are non-negative
+    @assert all(Ỹ .>= 0) "Some probabilities are negative"
     
     return Z, Ỹ
 end
