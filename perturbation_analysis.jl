@@ -201,7 +201,7 @@ function run_perturbation_analysis()
     results = DataFrame(
         model_used = String[],
         perturbed_standard_deviation = Float64[],
-        data_size = String[],  # Changed to String type
+        data_size = String[],
         knn = Int64[],
         percentage_of_known_labels = Float64[],
         α = Float64[],
@@ -223,52 +223,83 @@ function run_perturbation_analysis()
     features, y, A, DG_isqrt, T, DH_isqrt, B = load_data(dataset_name, kn, noise, weight_function, mode, binary)
     
     # Set parameters for the analysis
-    σ_values = [0.1, 0.4, 0.6, 0.8, 1.0]  # Standard deviation values for perturbation
-    percentages = [5.0]  # Percentage of known labels
+    σ_values = [0.25,0.5,0.75,1.0]  #collect(0.0:0.05:1.5)  # Standard deviation values from 0.0 to 1.0 in steps of 0.05
+    percentages = [5,10,15,20.0]  # Percentage of known labels
+    num_trials = 10  # Number of trials to average over
     
     for σ in σ_values
+        println("\nProcessing with perturbation σ = $σ")
         for pct in percentages
             println("Processing $(pct)% known labels...")
             
             # Update configuration
             data["HOLS"]["percentage_of_known_labels"] = [pct/100]  # Convert to decimal
             
-            # Select known labels once for both runs
-            known_indices = select_known_labels(y, pct/100, balanced)
+            # Initialize arrays to store results for averaging
+            trial_results = []
             
-            # Run unperturbed analysis
-            unperturbed_df = run_analysis(mode, data, y, features, A, DG_isqrt, T, DH_isqrt, B, known_indices, use_perturbed=false)
-            
-            # Run perturbed analysis with same known labels
-            perturbed_df = run_analysis(mode, data, y, features, A, DG_isqrt, T, DH_isqrt, B, known_indices, use_perturbed=true, σ=σ)
-            
-            # Debug output
-            println("DataFrame column types:")
-            for name in names(unperturbed_df)
-                println("$name: ", typeof(unperturbed_df[1, name]))
+            # Run multiple trials
+            for trial in 1:num_trials
+                println("\nTrial $trial of $num_trials")
+                
+                # Select known labels for this trial
+                known_indices = select_known_labels(y, pct/100, balanced)
+                
+                # Run unperturbed analysis
+                unperturbed_df = run_analysis(mode, data, y, features, A, DG_isqrt, T, DH_isqrt, B, known_indices, use_perturbed=false)
+                
+                # Run perturbed analysis with same known labels
+                perturbed_df = run_analysis(mode, data, y, features, A, DG_isqrt, T, DH_isqrt, B, known_indices, use_perturbed=true, σ=σ)
+                
+                # Store results for this trial
+                for (u_row, p_row) in zip(eachrow(unperturbed_df), eachrow(perturbed_df))
+                    push!(trial_results, (
+                        model_used = string(u_row.method_name),
+                        perturbed_standard_deviation = Float64(σ),
+                        data_size = string(u_row.size),
+                        knn = Int(u_row.knn),
+                        percentage_of_known_labels = Float64(pct),
+                        α = Float64(u_row.alpha),
+                        β = Float64(u_row.beta),
+                        unperturbed_accuracy = Float64(u_row.accuracy),
+                        perturbed_accuracy = Float64(p_row.accuracy),
+                        perturbed_difference = Float64(p_row.accuracy - u_row.accuracy)
+                    ))
+                end
             end
             
-            # Extract results
-            for (u_row, p_row) in zip(eachrow(unperturbed_df), eachrow(perturbed_df))
-                push!(results, (
-                    model_used = string(u_row.method_name),
-                    perturbed_standard_deviation = Float64(σ),
-                    data_size = string(u_row.size),  # Convert to string
-                    knn = Int(u_row.knn),
-                    percentage_of_known_labels = Float64(pct),
-                    α = Float64(u_row.alpha),
-                    β = Float64(u_row.beta),
-                    unperturbed_accuracy = Float64(u_row.accuracy),
-                    perturbed_accuracy = Float64(p_row.accuracy),
-                    perturbed_difference = Float64(p_row.accuracy - u_row.accuracy)
-                ))
+            # Group results by model and compute averages
+            grouped_results = Dict()
+            for result in trial_results
+                key = result.model_used
+                if !haskey(grouped_results, key)
+                    grouped_results[key] = []
+                end
+                push!(grouped_results[key], result)
+            end
+            
+            # Compute and store averages
+            for (model, model_results) in grouped_results
+                avg_result = (
+                    model_used = model,
+                    perturbed_standard_deviation = σ,
+                    data_size = model_results[1].data_size,
+                    knn = model_results[1].knn,
+                    percentage_of_known_labels = pct,
+                    α = model_results[1].α,
+                    β = model_results[1].β,
+                    unperturbed_accuracy = mean([r.unperturbed_accuracy for r in model_results]),
+                    perturbed_accuracy = mean([r.perturbed_accuracy for r in model_results]),
+                    perturbed_difference = mean([r.perturbed_difference for r in model_results])
+                )
+                push!(results, avg_result)
             end
         end
     end
     
     # Save results
-    CSV.write("perturbed_results/perturbation_analysis.csv", results)
-    println("Results saved to perturbed_results/perturbation_analysis.csv")
+    CSV.write("perturbed_results/perturbation_analysis_averaged.csv", results)
+    println("Results saved to perturbed_results/perturbation_analysis_averaged.csv")
 end
 
 # Run the analysis
