@@ -1,19 +1,19 @@
-mode: "HOLS"
+mode: "LS"
 
 HOLS:
   dataset: "Rice31"
-  data_type: "matrix"
+  data_type: "fb100"
   binary: true
   kn: 15
   noise: 0
   ε: 1e-6
-  tolerance: 1e-6
-  num_trials: 1
+  tolerance: 1e-5
+  num_trials: 10
   balanced: true
-  α: 0.1
-  β: 0.1
-  percentage_of_known_labels: [0.05, 0.1, 0.15, 0.2]
-  weight_function: "binary"
+  α: [0.1]
+  β: [0.1]
+  percentage_of_known_labels: [0.2]
+  weight_function: "cosine_angle"
   mixing_functions: "f_max"
 
 
@@ -24,14 +24,11 @@ LS:
   kn: 15
   noise: 0
   tolerance: 1e-5
-  dataset: Caltech36
-  binary: false
-  percentage_of_known_labels:
-    - .1
-    - .4
-    - 5
+  dataset: "Caltech36"
+  binary: true
+  percentage_of_known_labels: [0.15, 0.2, 0.25, 0.3]
   balanced: true
-  data_type: points
+  data_type: "fb100"
   num_trials: 5
 
 
